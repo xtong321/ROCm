@@ -27,7 +27,6 @@ __global__ void matmul_naive(
     // Deliberately poor thread mapping:
     // neighboring threads do not access neighboring
     // output elements efficiently.
-
     int col = blockIdx.y * blockDim.y + threadIdx.y;
     int row = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -111,15 +110,10 @@ int main(int argc, char** argv)
     hipMemcpy(d_B, h_B, sB, hipMemcpyHostToDevice);
 
     dim3 block(16, 16); // Use 256 threads
-
-    dim3 grid(
-        (N + block.x - 1) / block.x,
-        (M + block.y - 1) / block.y);
+    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
 
     // Warmup launch
-    matmul_naive<<<grid, block>>>(
-        d_A, d_B, d_C,
-        M, N, K);
+    matmul_naive<<<grid, block>>>(d_A, d_B, d_C, M, N, K);
 
     hipDeviceSynchronize();
 
@@ -131,9 +125,7 @@ int main(int argc, char** argv)
 
     for (int i = 0; i < 10; i++)
     {
-        matmul_naive<<<grid, block>>>(
-            d_A, d_B, d_C,
-            M, N, K);
+        matmul_naive<<<grid, block>>>(d_A, d_B, d_C, M, N, K);
     }
 
     hipEventRecord(stop);
@@ -144,48 +136,28 @@ int main(int argc, char** argv)
     ms /= 10.0f;
 
     // Copy result back to CPU
-    hipMemcpy(
-        h_C,
-        d_C,
-        sC,
-        hipMemcpyDeviceToHost);
+    hipMemcpy(h_C, d_C, sC, hipMemcpyDeviceToHost);
 
     // Correctness validation
-    matmul_cpu(
-        h_A,
-        h_B,
-        h_ref,
-        M, N, K);
+    matmul_cpu(h_A, h_B, h_ref, M, N, K);
 
     float maxErr = 0.0f;
     for (int i = 0; i < M * N; i++)
     {
-        maxErr = fmax(
-            maxErr,
-            fabs(h_C[i] - h_ref[i]));
+        maxErr = fmax(maxErr, fabs(h_C[i] - h_ref[i]));
     }
 
     // GEMM performs:
-    //
     //   2 * M * N * K floating-point operations
-    double gflops =
-        2.0 * M * N * K /
-        (ms * 1e-3) /
-        1e9;
+    double gflops = 2.0 * M * N * K / (ms * 1e-3) / 1e9;
 
     // Results
     printf("Kernel:    BASELINE (naive)\n");
-    printf(
-        "Block:     %dx%d = %d threads\n",
-        block.x,
-        block.y,
-        block.x * block.y);
+    printf("Block:     %dx%d = %d threads\n", block.x, block.y, block.x * block.y);
     printf("Time:      %.3f ms\n", ms);
     printf("GFLOPS:    %.1f\n", gflops);
     printf("Max error: %e\n", maxErr);
-    printf(
-        "Status:    %s\n",
-        maxErr < 1e-2 ? "PASS" : "FAIL");
+    printf("Status:    %s\n", maxErr < 1e-2 ? "PASS" : "FAIL");
 
     // Cleanup
     hipFree(d_A);

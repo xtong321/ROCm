@@ -94,7 +94,6 @@ int main()
         h_B[i] = (float)rand() / RAND_MAX;
 
     float *d_A, *d_B, *d_C;
-
     hipMalloc(&d_A, sA);
     hipMalloc(&d_B, sB);
     hipMalloc(&d_C, sC);
@@ -103,32 +102,22 @@ int main()
     hipMemcpy(d_B, h_B, sB, hipMemcpyHostToDevice);
 
     dim3 block(16, 16);
-
-    dim3 grid(
-        (N + block.x - 1) / block.x,
-        (M + block.y - 1) / block.y);
+    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
 
     // Warmup
-    matmul_coalesced<<<grid, block>>>(
-        d_A, d_B, d_C,
-        M, N, K);
+    matmul_coalesced<<<grid, block>>>(d_A, d_B, d_C, M, N, K);
 
     hipDeviceSynchronize();
 
     // GPU timing
-
     hipEvent_t start, stop;
-
     hipEventCreate(&start);
     hipEventCreate(&stop);
-
     hipEventRecord(start);
 
     for (int i = 0; i < 10; i++)
     {
-        matmul_coalesced<<<grid, block>>>(
-            d_A, d_B, d_C,
-            M, N, K);
+        matmul_coalesced<<<grid, block>>>(d_A, d_B, d_C, M, N, K);
     }
 
     hipEventRecord(stop);
@@ -145,23 +134,14 @@ int main()
     for (int i = 0; i < M * N; i++)
         maxErr = fmax(maxErr, fabs(h_C[i] - h_ref[i]));
 
-    double gflops =
-        2.0 * M * N * K /
-        (ms * 1e-3) /
-        1e9;
+    double gflops = 2.0 * M * N * K / (ms * 1e-3) / 1e9;
 
     printf("Kernel:    COALESCED\n");
-    printf(
-        "Block:     %dx%d = %d threads\n",
-        block.x,
-        block.y,
-        block.x * block.y);
+    printf("Block:     %dx%d = %d threads\n", block.x, block.y, block.x * block.y);
     printf("Time:      %.3f ms\n", ms);
     printf("GFLOPS:    %.1f\n", gflops);
     printf("Max error: %e\n", maxErr);
-    printf(
-        "Status:    %s\n",
-        maxErr < 1e-2 ? "PASS" : "FAIL");
+    printf("Status:    %s\n", maxErr < 1e-2 ? "PASS" : "FAIL");
 
     hipFree(d_A);
     hipFree(d_B);

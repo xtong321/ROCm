@@ -37,7 +37,6 @@ __global__ void matmul_tiled(
     int K)
 {
     // Fast on-chip shared memory (LDS)
-
     __shared__ float tileA[TILE_SIZE][TILE_SIZE];
     __shared__ float tileB[TILE_SIZE][TILE_SIZE];
 
@@ -68,7 +67,6 @@ __global__ void matmul_tiled(
         __syncthreads();
 
         // Compute partial sum using fast LDS memory
-
         for (int k = 0; k < TILE_SIZE; k++)
             sum += tileA[ty][k] * tileB[k][tx];
 
@@ -140,14 +138,10 @@ int main()
 
     // Same 16x16 workgroup as Iteration 1
     dim3 block(TILE_SIZE, TILE_SIZE);
-    dim3 grid(
-        (N + TILE_SIZE - 1) / TILE_SIZE,
-        (M + TILE_SIZE - 1) / TILE_SIZE);
+    dim3 grid((N + TILE_SIZE - 1) / TILE_SIZE, (M + TILE_SIZE - 1) / TILE_SIZE);
 
     // Warmup
-    matmul_tiled<<<grid, block>>>(
-        d_A, d_B, d_C,
-        M, N, K);
+    matmul_tiled<<<grid, block>>>(d_A, d_B, d_C, M, N, K);
 
     hipDeviceSynchronize();
 
@@ -157,11 +151,9 @@ int main()
     hipEventCreate(&stop);
     hipEventRecord(start);
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) 
     {
-        matmul_tiled<<<grid, block>>>(
-            d_A, d_B, d_C,
-            M, N, K);
+        matmul_tiled<<<grid, block>>>(d_A, d_B, d_C, M, N, K);
     }
 
     hipEventRecord(stop);
@@ -173,26 +165,16 @@ int main()
     hipMemcpy(h_C, d_C, sC, hipMemcpyDeviceToHost);
 
     // Validation
-    matmul_cpu(
-        h_A,
-        h_B,
-        h_ref,
-        M, N, K);
+    matmul_cpu(h_A, h_B, h_ref, M, N, K);
 
     float maxErr = 0.0f;
     for (int i = 0; i < M * N; i++)
         maxErr = fmax(maxErr, fabs(h_C[i] - h_ref[i]));
 
-    double gflops =
-        2.0 * M * N * K /
-        (ms * 1e-3) /
-        1e9;
+    double gflops = 2.0 * M * N * K / (ms * 1e-3) / 1e9;
 
     printf("Kernel:    V3 (tiled + LDS)\n");
-    printf("Block:     %dx%d = %d threads\n",
-        block.x,
-        block.y,
-        block.x * block.y);
+    printf("Block:     %dx%d = %d threads\n", block.x, block.y, block.x * block.y);
     printf("Time:      %.3f ms\n", ms);
     printf("GFLOPS:    %.1f\n", gflops);
     printf("Max error: %e\n", maxErr);
